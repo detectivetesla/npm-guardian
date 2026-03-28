@@ -6,6 +6,7 @@ build/
 coverage/
 .env
 .env.local
+.env.*.local
 .DS_Store
 *.log
 npm-debug.log*
@@ -15,3 +16,9 @@ target/
 __pycache__/
 *.pyc
 .venv/
+tsc_errors.txt
+tsc_output.txt
+tsconfig.tsbuildinfo
+push_error.txt
+push_stderr.txt
+push_stderr_utf8.txt
