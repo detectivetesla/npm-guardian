@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import RiskCard from "@/components/RiskCard";
 import ScanForm from "@/components/ScanForm";
 import RecentScans from "@/components/RecentScans";
 import DependencyGraph from "@/components/DependencyGraph";
-import { Shield } from "lucide-react";
+import { Shield, User, LogOut } from "lucide-react";
+import { supabasePublic } from "@/lib/supabase";
+import { Session } from "@supabase/supabase-js";
 
 interface DashboardStats {
   totalScans: number;
@@ -28,6 +31,7 @@ interface DashboardStats {
 export default function Home() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -50,9 +54,31 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
+  useEffect(() => {
+    if (!supabasePublic) return;
+
+    // Get initial session
+    supabasePublic.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabasePublic.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleScanQueued = () => {
     // Refresh stats after a scan is queued
     setTimeout(fetchStats, 1000);
+  };
+
+  const handleSignOut = async () => {
+    if (supabasePublic) {
+      await supabasePublic.auth.signOut();
+    }
   };
 
   return (
@@ -65,9 +91,39 @@ export default function Home() {
             npm-Guardian
           </h1>
         </div>
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          System Online
+        
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            System Online
+          </div>
+
+          <div className="w-px h-6 bg-zinc-800 hidden sm:block"></div>
+
+          {session ? (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">
+                <User size={14} className="text-emerald-400" />
+                <span className="truncate max-w-[120px]">{session.user.email}</span>
+              </div>
+              <button 
+                onClick={handleSignOut}
+                className="text-zinc-500 hover:text-red-400 transition flex items-center gap-1 text-sm"
+              >
+                <LogOut size={16} />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <Link href="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition">
+                Log in
+              </Link>
+              <Link href="/signup" className="text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-full transition shadow-lg shadow-emerald-900/20">
+                Sign up
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -78,30 +134,10 @@ export default function Home() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-7xl mt-8">
-        <RiskCard
-          title="Total Scans"
-          value={stats?.totalScans ?? 0}
-          status="neutral"
-          loading={loading}
-        />
-        <RiskCard
-          title="High Risk Found"
-          value={stats?.highRiskCount ?? 0}
-          status="danger"
-          loading={loading}
-        />
-        <RiskCard
-          title="Repos Protected"
-          value={stats?.reposProtected ?? 0}
-          status="success"
-          loading={loading}
-        />
-        <RiskCard
-          title="Packages Analyzed"
-          value={stats?.packagesAnalyzed ?? 0}
-          status="neutral"
-          loading={loading}
-        />
+        <RiskCard title="Total Scans" value={stats?.totalScans ?? 0} status="neutral" loading={loading} />
+        <RiskCard title="High Risk Found" value={stats?.highRiskCount ?? 0} status="danger" loading={loading} />
+        <RiskCard title="Repos Protected" value={stats?.reposProtected ?? 0} status="success" loading={loading} />
+        <RiskCard title="Packages Analyzed" value={stats?.packagesAnalyzed ?? 0} status="neutral" loading={loading} />
       </div>
 
       {/* Recent Scans */}
